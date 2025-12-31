@@ -25,6 +25,7 @@ jobs:
           bun-version: latest
 
       - run: bun install
+      - run: bun run test
       - run: bun run build
 
       # Upload the demo folder as the Pages artifact
