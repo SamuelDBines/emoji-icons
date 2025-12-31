@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Emoji Search Demo</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        padding: 16px;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      input {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 16px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+      button {
+        text-align: left;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        background: white;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: #aaa;
+      }
+      .meta {
+        opacity: 0.7;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      .top {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 8px;
+      }
+      .pill {
+        padding: 6px 10px;
+        border: 1px solid #ddd;
+        border-radius: 999px;
+        font-size: 13px;
+      }
+      pre {
+        background: #f6f6f6;
+        padding: 10px;
+        border-radius: 10px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Emoji Search Demo</h1>
+    <input id="q" placeholder="Search (e.g. hand, wave, 1F44B, U+1F3FC)…" />
+
+    <div class="top">
+      <div class="pill">Results: <span id="count">0</span></div>
+      <div class="pill">Picked: <span id="picked">—</span></div>
+    </div>
+
+    <pre id="info"></pre>
+
+    <div id="grid" class="grid"></div>
+
+    <script type="module">
+      import { search, hexFromEmoji } from '../dist/index.js';
+
+      const input = document.getElementById('q');
+      const grid = document.getElementById('grid');
+      const count = document.getElementById('count');
+      const picked = document.getElementById('picked');
+      const info = document.getElementById('info');
+
+      function render(q) {
+        const list = search(q, { limit: 120 });
+        count.textContent = String(list.length);
+        grid.innerHTML = '';
+
+        for (const e of list) {
+          const btn = document.createElement('button');
+          btn.innerHTML = `<div>${e.icon} <b>${e.desc}</b></div>
+                           <div class="meta">${e.cps.join(' ')}</div>`;
+          btn.addEventListener('click', () => {
+            picked.textContent = e.icon;
+            info.textContent = JSON.stringify(
+              { icon: e.icon, desc: e.desc, cps: e.cps, hexFromEmoji: hexFromEmoji(e.icon) },
+              null,
+              2,
+            );
+          });
+          grid.appendChild(btn);
+        }
+      }
+
+      input.addEventListener('input', () => render(input.value));
+      render('');
+    </script>
+  </body>
+</html>
