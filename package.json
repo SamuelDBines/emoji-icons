@@ -1,7 +1,7 @@
 {
   "name": "@samuelbines/emojis",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "version": "0.0.1",
   "type": "module",
   "exports": {
@@ -22,7 +22,7 @@
     "dev": "bun scripts/build.ts && tsc -w -p tsconfig.json"
   },
   "keywords": [],
-  "author": "",
+  "author": "Samuel Bines",
   "license": "ISC",
   "packageManager": "pnpm@10.20.0",
   "devDependencies": {
