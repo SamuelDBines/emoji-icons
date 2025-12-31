@@ -17,7 +17,8 @@
     "test": "vitest run",
     "prebuild": "bun scripts/build.ts",
     "build": "tsc -p tsconfig.json",
-    "demo": "bun run build && bunx serve . -l 5173",
+    "demo": "bun run build:demo && bunx serve . -l 5173",
+    "build:demo": "bun run build && rm -rf demo/dist && cp -R dist demo/dist",
     "dev": "bun scripts/build.ts && tsc -w -p tsconfig.json"
   },
   "keywords": [],
