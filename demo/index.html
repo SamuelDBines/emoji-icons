@@ -12,7 +12,7 @@
         margin: 0 auto;
       }
       input {
-        width: 100%;
+        width: -webkit-fill-available;
         padding: 10px 12px;
         font-size: 16px;
       }
@@ -50,11 +50,42 @@
         border-radius: 999px;
         font-size: 13px;
       }
+
+      .copybtn {
+        position: absolute;
+        top: 20px;
+        right: 8px;
+        padding: 6px 10px;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        background: white;
+        cursor: pointer;
+      }
+      .codebox {
+        position: relative;
+        display: none;
+      }
       pre {
         background: #f6f6f6;
         padding: 10px;
         border-radius: 10px;
         overflow: auto;
+        padding-top: 36px;
+      }
+      #more {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #ddd;
+        background: white;
+        cursor: pointer;
+      }
+      #more:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      #picked-container {
+        cursor: pointer;
       }
     </style>
   </head>
@@ -64,31 +95,72 @@
 
     <div class="top">
       <div class="pill">Results: <span id="count">0</span></div>
-      <div class="pill">Picked: <span id="picked">—</span></div>
+      <div id="picked-container" class="pill">Picked: <span id="picked">—</span></div>
+    </div>
+    <div id="codebox" class="codebox">
+      <button id="copybtn" type="button" class="copybtn" data-copy="#info">Copy</button>
+      <pre id="info"></pre>
     </div>
 
-    <pre id="info"></pre>
-
     <div id="grid" class="grid"></div>
+    <div id="sentinel" style="height: 1px"></div>
 
     <script type="module">
-      import { search, hexFromEmoji } from './dist/index.js';
+      // Canonicalize double slashes before module fetch issues
+      if (location.pathname.includes('//')) {
+        location.replace(
+          location.pathname.replace(/\/{2,}/g, '/') + location.search + location.hash,
+        );
+      }
+
+      import { search, hexFromEmoji, count as totalCount } from './dist/index.js';
 
       const input = document.getElementById('q');
       const grid = document.getElementById('grid');
-      const count = document.getElementById('count');
+      const countEl = document.getElementById('count');
       const picked = document.getElementById('picked');
+      const pickedContainer = document.getElementById('picked-container');
       const info = document.getElementById('info');
+      const moreBtn = document.getElementById('more');
+      const sentinel = document.getElementById('sentinel');
+      const codebox = document.getElementById('codebox');
+      const copyBtn = document.getElementById('copybtn');
 
-      function render(q) {
-        const list = search(q, { limit: 120 });
-        count.textContent = String(list.length);
-        grid.innerHTML = '';
+      let next = 0;
+      let currentQuery = '';
+      let loading = false;
+      let limit = 120;
+
+      function scrollToBottomSmooth() {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      }
+
+      async function copyFromSelector(selector) {
+        const el = document.querySelector(selector);
+        const text = el?.textContent ?? '';
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          const ok = document.execCommand('copy');
+          ta.remove();
+          return ok;
+        }
+      }
+
+      function renderItems(list, { append }) {
+        if (!append) grid.innerHTML = '';
 
         for (const e of list) {
           const btn = document.createElement('button');
           btn.innerHTML = `<div>${e.icon} <b>${e.desc}</b></div>
-                           <div class="meta">${e.cps.join(' ')}</div>`;
+                       <div class="meta">${e.cps.join(' ')}</div>`;
           btn.addEventListener('click', () => {
             picked.textContent = e.icon;
             info.textContent = JSON.stringify(
@@ -96,13 +168,66 @@
               null,
               2,
             );
+            codebox.style.display = 'grid';
           });
           grid.appendChild(btn);
         }
       }
 
-      input.addEventListener('input', () => render(input.value));
-      render('');
+      function load({ append }) {
+        if (loading) return;
+        if (append && next === null) return;
+
+        loading = true;
+        const res = search(currentQuery, { limit: 120, next });
+
+        renderItems(res.items, { append });
+
+        countEl.textContent = String(res.total ?? res.items.length);
+        next = res.next;
+        loading = false;
+      }
+
+      countEl.textContent = String(totalCount());
+      load({ append: false });
+
+      // Event listenders
+
+      pickedContainer.addEventListener('click', () => {
+        picked.textContent = '-';
+        info.textContent = '';
+        codebox.style.display = 'none';
+      });
+
+      input?.addEventListener('input', () => {
+        currentQuery = input.value;
+        next = 0;
+        load({ append: false });
+      });
+
+      copyBtn?.addEventListener('click', async (e) => {
+        const sel = copyBtn.getAttribute('data-copy');
+        const ok = await copyFromSelector(sel);
+        copyBtn.textContent = ok ? 'Copied!' : 'Copy failed';
+        setTimeout(() => (copyBtn.textContent = 'Copy'), 1200);
+      });
+
+      const io = new IntersectionObserver(
+        (entries) => {
+          console.log('here');
+          const entry = entries[0];
+          if (entry.isIntersecting) {
+            load({ append: true });
+          }
+        },
+        {
+          root: null,
+          rootMargin: '600px',
+          threshold: 0,
+        },
+      );
+
+      io.observe(sentinel);
     </script>
   </body>
 </html>

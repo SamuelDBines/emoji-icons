@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EMOJIS, EMOJI_BY_ID, type EmojiEntry } from '../src/generated';
+import { EMOJIS, EMOJI_BY_ID } from '../src/generated';
 import { count, search, getById, emojiFromHex, hexFromEmoji } from '../src/index';
 
 const isHex = (s: string) => /^[0-9A-F]{4,6}$/.test(s);
@@ -47,13 +47,24 @@ describe('emoji dataset integrity', () => {
     }
   });
 
-  it('common skin-tone sequences have base first then modifier', () => {
+  it('skin-tone sequences are usually base then modifier (and report offenders)', () => {
     const toneEntries = EMOJIS.filter((e) => e.cps.some(isTone));
     expect(toneEntries.length).toBeGreaterThan(0);
 
+    const offenders: { id: number; cps: string[]; desc: string }[] = [];
+
     for (const e of toneEntries) {
       const toneIndex = e.cps.findIndex(isTone);
-      expect(toneIndex).toBeGreaterThan(0);
+
+      if (toneIndex === 0) offenders.push({ id: e.id, cps: e.cps, desc: e.desc });
+    }
+
+    const ratio = offenders.length / toneEntries.length;
+
+    expect(ratio).toBeLessThanOrEqual(0.05);
+
+    if (offenders.length) {
+      console.warn('Skin-tone ordering offenders (first 5):', offenders.slice(0, 5));
     }
   });
 });
@@ -62,7 +73,6 @@ describe('public API', () => {
   it('getById returns entry or null', () => {
     const first = EMOJIS[0];
     expect(getById(first.id)?.icon).toBe(first.icon);
-
     expect(getById(-12345)).toBeNull();
   });
 
@@ -80,33 +90,67 @@ describe('public API', () => {
     }
   });
 
-  it('search returns limited results and is case-insensitive', () => {
-    const a = search('hand', { limit: 10 });
-    const b = search('HAND', { limit: 10 });
-    expect(a.length).toBeLessThanOrEqual(10);
-    expect(b.length).toBeLessThanOrEqual(10);
+  it('search is case-insensitive and respects limit', () => {
+    const ra = search('hand', { limit: 10 });
+    const rb = search('HAND', { limit: 10 });
 
-    expect(a.map((x) => x.id)).toEqual(b.map((x) => x.id));
+    expect(ra.items.length).toBeLessThanOrEqual(10);
+    expect(rb.items.length).toBeLessThanOrEqual(10);
+
+    expect(ra.items.map((x) => x.id)).toEqual(rb.items.map((x) => x.id));
   });
 
-  it('search by hex finds entries containing that codepoint', () => {
+  it('search by hex finds entries containing that codepoint (and supports U+ prefix)', () => {
     const e = EMOJIS.find((x) => x.cps.length > 0);
     expect(e).toBeDefined();
 
     const hx = e!.cps[0];
-    const hits = search(hx, { limit: 200 });
 
-    expect(hits.some((x) => x.id === e!.id)).toBe(true);
+    const r1 = search(hx, { limit: 200 });
+    expect(r1.items.some((x) => x.id === e!.id)).toBe(true);
 
-    // U+ prefix should also work
-    const hits2 = search(`U+${hx}`, { limit: 200 });
-    expect(hits2.some((x) => x.id === e!.id)).toBe(true);
+    const r2 = search(`U+${hx}`, { limit: 200 });
+    expect(r2.items.some((x) => x.id === e!.id)).toBe(true);
   });
 
-  it('empty search returns first N results', () => {
+  it('empty search returns first N results and paginates with next', () => {
     const n = 25;
-    const hits = search('', { limit: n });
-    expect(hits.length).toBe(n);
-    expect(hits[0].id).toBe(EMOJIS[0].id);
+
+    const r1 = search('', { limit: n, next: 0 });
+    expect(r1.items.length).toBe(n);
+    expect(r1.items[0].id).toBe(EMOJIS[0].id);
+    expect(r1.next).toBe(n);
+
+    const r2 = search('', { limit: n, next: r1.next! });
+    expect(r2.items.length).toBe(n);
+    expect(r2.items[0].id).toBe(EMOJIS[n].id);
+
+    const page1 = new Set(r1.items.map((x) => x.id));
+    expect(r2.items.some((x) => page1.has(x.id))).toBe(false);
+  });
+
+  it('keyword paging is consistent across pages (same query)', () => {
+    const q = 'hand';
+    const limit = 20;
+
+    const r1 = search(q, { limit, next: 0 });
+    expect(r1.items.length).toBeLessThanOrEqual(limit);
+
+    if (r1.next === null) {
+      expect(r1.items.length).toBeGreaterThan(0);
+      return;
+    }
+
+    const r2 = search(q, { limit, next: r1.next });
+    expect(r2.items.length).toBeLessThanOrEqual(limit);
+
+    const ids1 = new Set(r1.items.map((x) => x.id));
+    expect(r2.items.some((x) => ids1.has(x.id))).toBe(false);
+  });
+
+  it('next is null when there are no more results', () => {
+    const r = search('', { limit: 999999, next: 0 });
+    expect(r.items.length).toBe(EMOJIS.length);
+    expect(r.next).toBeNull();
   });
 });

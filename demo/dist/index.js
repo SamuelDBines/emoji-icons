@@ -6,29 +6,25 @@ export const getById = (id) => EMOJI_BY_ID[id] ?? null;
 const looksLikeHex = (q) => /^[0-9A-Fa-f]{4,6}$/.test(q.replace(/^U\+/i, ''));
 const normalizeHex = (q) => q.replace(/^U\+/i, '').toUpperCase();
 export function search(query, opts = {}) {
-    const limit = opts.limit ?? 50;
+    const limit = Math.max(1, opts.limit ?? 50);
+    const offset = Math.max(0, opts.next ?? 0);
     const q = (query ?? '').trim().toLowerCase();
-    if (!q)
-        return EMOJIS.slice(0, limit);
+    if (!q) {
+        const items = EMOJIS.slice(offset, offset + limit);
+        const next = offset + items.length < EMOJIS.length ? offset + items.length : null;
+        return { items, next, total: EMOJIS.length };
+    }
     if (looksLikeHex(q)) {
         const hx = normalizeHex(q);
-        const out = [];
-        for (const e of EMOJIS) {
-            if (e.cps.includes(hx))
-                out.push(e);
-            if (out.length >= limit)
-                break;
-        }
-        return out;
+        const filtered = EMOJIS.filter((e) => e.cps.includes(hx));
+        const items = filtered.slice(offset, offset + limit);
+        const next = offset + items.length < filtered.length ? offset + items.length : null;
+        return { items, next, total: filtered.length };
     }
-    const out = [];
-    for (const e of EMOJIS) {
-        if (e.hay.includes(q))
-            out.push(e);
-        if (out.length >= limit)
-            break;
-    }
-    return out;
+    const filtered = EMOJIS.filter((e) => e.hay.includes(q));
+    const items = filtered.slice(offset, offset + limit);
+    const next = offset + items.length < filtered.length ? offset + items.length : null;
+    return { items, next, total: filtered.length };
 }
 export const all = () => EMOJIS;
 export const count = () => EMOJIS.length;

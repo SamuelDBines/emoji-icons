@@ -35,7 +35,7 @@ bun add @samuelbines/emojis
 ```ts
 import { search } from '@samuelbines/emojis';
 
-const results = search('waving hand');
+const { items: results } = search('waving hand');
 
 results.forEach((e) => {
   console.log(e.icon, e.desc);
@@ -118,7 +118,8 @@ Browser example
 
   input.addEventListener('input', () => {
     results.innerHTML = '';
-    for (const e of search(input.value, { limit: 50 })) {
+    const { items, next, total } = search(input.value, { limit: 50 });
+    for (const e of items) {
       const btn = document.createElement('button');
       btn.textContent = `${e.icon} ${e.desc}`;
       results.appendChild(btn);
